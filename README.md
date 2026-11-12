@@ -65,4 +65,4 @@ A clean independent build is not claimed by the source-transfer commit. It requi
 
 ## Source provenance
 
-The source files in this repository are transferred from andalus-ai/numu/security/. The source monorepo remains authoritative until this repository has passed clean build, security tests, package publication and consumer migration gates. Do not delete or disable the source modules as part of this extraction PR.
+The source files in this repository are transferred from andalus-ai/numu/security/ at source commit 9bd74574796486a3b86312b28f589e30de347885. The transfer preserves 172 source files while replacing the monorepo root POM and legacy shared BOM with repository-specific Maven metadata. The source monorepo remains authoritative until this repository has passed clean build, security tests, package publication and consumer migration gates. Do not delete or disable the source modules as part of this extraction PR.
