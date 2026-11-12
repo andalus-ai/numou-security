@@ -21,6 +21,13 @@
             <url>https://maven.pkg.github.com/andalus-ai/numu</url>
         </repository>
     </repositories>
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages - Numou Security</name>
+            <url>https://maven.pkg.github.com/andalus-ai/numou-security</url>
+        </repository>
+    </distributionManagement>
     <dependencyManagement>
         <dependencies>
             <dependency>
