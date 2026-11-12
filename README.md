@@ -27,7 +27,35 @@ Capability BOM: tech.kayys.numou:numou-security-bom:0.1.0-SNAPSHOT
 Source package repository: https://maven.pkg.github.com/andalus-ai/numu
 Publication target: https://maven.pkg.github.com/andalus-ai/numou-security
 
-Configure Maven credentials for server id github using a token with package read access to the Core repository and package write access to this repository. Never commit credentials.
+Configure Maven settings so the neutral parent can be resolved before the project POM is read. Add a server and an active repository profile (substitute a suitable username and inject the token through an environment variable):
+
+```xml
+<settings>
+  <servers>
+    <server>
+      <id>github</id>
+      <username>${env.GITHUB_ACTOR}</username>
+      <password>${env.GITHUB_TOKEN}</password>
+    </server>
+  </servers>
+  <profiles>
+    <profile>
+      <id>numou-packages</id>
+      <repositories>
+        <repository>
+          <id>github</id>
+          <url>https://maven.pkg.github.com/andalus-ai/numu</url>
+        </repository>
+      </repositories>
+    </profile>
+  </profiles>
+  <activeProfiles>
+    <activeProfile>numou-packages</activeProfile>
+  </activeProfiles>
+</settings>
+```
+
+The token needs package read access to the Core repository and package write access to this repository for publication. Never commit credentials.
 
 ## Build
 
