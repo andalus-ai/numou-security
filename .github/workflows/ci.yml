@@ -1,0 +1,33 @@
+name: Security Maven Topology
+
+on:
+  pull_request:
+    paths:
+      - "pom.xml"
+      - "bom/**"
+      - "security-*/**"
+      - "social-graph-adapter/**"
+      - "vault-secret/**"
+      - "vault-secret-cloud/**"
+      - "tools/verify-maven-topology.py"
+      - ".github/workflows/ci.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  topology:
+    name: Security module and BOM topology
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate standalone Maven topology
+        run: python3 tools/verify-maven-topology.py
