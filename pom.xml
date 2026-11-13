@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>tech.kayys.numou</groupId>
+        <artifactId>numou-framework</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+        <relativePath>../core/framework/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>numou-security</artifactId>
+    <packaging>pom</packaging>
+
+    <name>Numou Security - Aggregator</name>
+    <description>
+        Phase 1 security layer (Docs/Plan/base01.md §16, §P1-17, §P1-18).
+
+        Two deliberately distinct questions:
+
+            authentication  Who are you?
+            authorization   What are you allowed to do?
+
+        Authorization is contextual - user, tenant, resource, action and
+        context - because one user may belong to several tenants and
+        "Can John update Shipment #123 for Tenant ABC?" is the real
+        question. Business audit is separate from technical logging and
+        lives here as an append-only aggregate.
+    </description>
+
+    <modules>
+        <module>security-domain</module>
+        <module>security-spi</module>
+        <module>security-application</module>
+        <module>security-adapter</module>
+        <module>social-graph-adapter</module>
+        <module>security-vault-domain</module>
+        <module>security-vault-spi</module>
+        <module>security-vault-application</module>
+        <module>security-vault-postgres</module>
+        <module>security-vault-crypto</module>
+    </modules>
+
+</project>
