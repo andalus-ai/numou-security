@@ -79,7 +79,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-          cache: maven
       - name: Configure Core and capability package credentials
         env:
           GITHUB_ACTOR: ${{ github.actor }}
@@ -100,5 +99,8 @@ jobs:
             <activeProfiles><activeProfile>numou-platform</activeProfile></activeProfiles>
           </settings>
           XML
-      - name: Verify Security and Vault reactor
-        run: mvn -B -ntp verify
+      - name: Verify Security and Vault reactor from an empty Maven repository
+        run: |
+          mvn -B -ntp -U \\
+            -Dmaven.repo.local="$RUNNER_TEMP/numou-security-empty-m2" \\
+            verify
