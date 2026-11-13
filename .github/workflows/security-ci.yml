@@ -1,0 +1,98 @@
+name: Security Capability CI
+
+on:
+  pull_request:
+    paths:
+      - "**"
+      - ".github/workflows/security-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  structure:
+    name: Security reactor and BOM structure
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Maven reactor, parents and capability BOM
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          ns = {"m": "http://maven.apache.org/POM/4.0.0"}
+          def parse(path):
+              return ET.parse(path).getroot()
+
+          root = parse("pom.xml")
+          assert root.findtext("m:artifactId", namespaces=ns) == "numou-security"
+          parent = root.find("m:parent", ns)
+          assert parent.findtext("m:artifactId", namespaces=ns) == "numou-parent"
+          assert parent.findtext("m:relativePath", namespaces=ns) == ""
+
+          modules = [n.text for n in root.findall("m:modules/m:module", ns)]
+          assert modules.count("bom") == 1
+          expected = {
+              "security-domain", "security-spi", "security-application",
+              "security-adapter", "social-graph-adapter",
+              "security-vault-domain", "security-vault-spi",
+              "security-vault-application", "security-vault-postgres",
+              "security-vault-crypto",
+          }
+          assert set(modules[1:]) == expected, (modules, expected)
+          for module in modules:
+              assert Path(module, "pom.xml").is_file(), f"Missing module POM: {module}"
+
+          bom = parse("bom/pom.xml")
+          assert bom.findtext("m:artifactId", namespaces=ns) == "numou-security-bom"
+          managed = {
+              n.findtext("m:artifactId", namespaces=ns)
+              for n in bom.findall(".//m:dependencyManagement/m:dependencies/m:dependency", ns)
+          }
+          module_artifacts = {
+              parse(Path(module, "pom.xml")).findtext("m:artifactId", namespaces=ns)
+              for module in expected
+          }
+          assert module_artifacts == managed, (module_artifacts, managed)
+          print(f"Validated {len(expected)} active modules and {len(managed)} BOM-managed artifacts")
+          PY
+
+  maven-verify:
+    name: Maven verify against Core packages
+    runs-on: ubuntu-24.04
+    if: ${{ secrets.GH_PACKAGES_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Configure GitHub Packages credentials
+        env:
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          GH_PACKAGES_USERNAME: ${{ secrets.GH_PACKAGES_USERNAME }}
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'XML'
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.2.0">
+            <servers>
+              <server><id>numou-platform</id><username>${GH_PACKAGES_USERNAME}</username><password>${GH_PACKAGES_TOKEN}</password></server>
+              <server><id>github</id><username>${GH_PACKAGES_USERNAME}</username><password>${GH_PACKAGES_TOKEN}</password></server>
+            </servers>
+            <profiles>
+              <profile><id>numou-platform</id><repositories>
+                <repository><id>numou-platform</id><url>https://maven.pkg.github.com/andalus-ai/numu</url><snapshots><enabled>true</enabled></snapshots></repository>
+              </repositories></profile>
+            </profiles>
+            <activeProfiles><activeProfile>numou-platform</activeProfile></activeProfiles>
+          </settings>
+          XML
+      - name: Verify Security and Vault reactor
+        run: mvn -B -ntp verify
