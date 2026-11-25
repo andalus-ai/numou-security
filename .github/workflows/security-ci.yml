@@ -1,0 +1,106 @@
+name: Security Capability CI
+
+on:
+  pull_request:
+    paths:
+      - "**"
+      - ".github/workflows/security-ci.yml"
+  workflow_dispatch:
+    inputs:
+      verify_remote_packages:
+        description: Run Maven verify against published Core GitHub Packages artifacts
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: security-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  structure:
+    name: Security reactor and BOM structure
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Maven reactor, parents and capability BOM
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          ns = {"m": "http://maven.apache.org/POM/4.0.0"}
+          def parse(path):
+              return ET.parse(path).getroot()
+
+          root = parse("pom.xml")
+          assert root.findtext("m:artifactId", namespaces=ns) == "numou-security"
+          parent = root.find("m:parent", ns)
+          assert parent.findtext("m:artifactId", namespaces=ns) == "numou-parent"
+          assert parent.findtext("m:relativePath", namespaces=ns) == ""
+
+          modules = [n.text for n in root.findall("m:modules/m:module", ns)]
+          expected = {
+              "security-domain", "security-spi", "security-application",
+              "security-adapter", "social-graph-adapter",
+              "security-vault-domain", "security-vault-spi",
+              "security-vault-application", "security-vault-postgres",
+              "security-vault-crypto",
+          }
+          assert modules.count("bom") == 1 and set(modules[1:]) == expected
+          for module in modules:
+              assert Path(module, "pom.xml").is_file(), f"Missing module POM: {module}"
+
+          bom = parse("bom/pom.xml")
+          assert bom.findtext("m:artifactId", namespaces=ns) == "numou-security-bom"
+          managed = {
+              n.findtext("m:artifactId", namespaces=ns)
+              for n in bom.findall(".//m:dependencyManagement/m:dependencies/m:dependency", ns)
+          }
+          module_artifacts = {
+              parse(Path(module, "pom.xml")).findtext("m:artifactId", namespaces=ns)
+              for module in expected
+          }
+          assert module_artifacts == managed, (module_artifacts, managed)
+          print(f"Validated {len(expected)} active modules and {len(managed)} BOM-managed artifacts")
+          PY
+
+  maven-verify:
+    name: Maven verify against Core packages
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.verify_remote_packages }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Configure Core and capability package credentials
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<XML
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.2.0">
+            <servers>
+              <server><id>numou-platform</id><username>${GITHUB_ACTOR}</username><password>${GITHUB_TOKEN}</password></server>
+              <server><id>github</id><username>${GITHUB_ACTOR}</username><password>${GITHUB_TOKEN}</password></server>
+            </servers>
+            <profiles>
+              <profile><id>numou-platform</id><repositories>
+                <repository><id>numou-platform</id><url>https://maven.pkg.github.com/andalus-ai/numu</url><snapshots><enabled>true</enabled></snapshots></repository>
+              </repositories></profile>
+            </profiles>
+            <activeProfiles><activeProfile>numou-platform</activeProfile></activeProfiles>
+          </settings>
+          XML
+      - name: Verify Security and Vault reactor from an empty Maven repository
+        run: |
+          mvn -B -ntp -U \\
+            -Dmaven.repo.local="$RUNNER_TEMP/numou-security-empty-m2" \\
+            verify
